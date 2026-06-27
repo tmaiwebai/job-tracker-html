@@ -295,12 +295,12 @@ function init(){
   try{ historyCache = JSON.parse(localStorage.getItem(CACHE_KEY)||'[]'); }catch(e){ historyCache=[]; }
   let saved = {};
   try{ saved = JSON.parse(localStorage.getItem(AT_KEY)||'{}'); }catch(e){}
-  atBaseId = saved.baseId || '';
+  atBaseId = saved.baseId || 'appNfS5sFG82vJQxw';
   atToken  = saved.token  || '';
   const bi = document.getElementById('at-base-id');
   const tk = document.getElementById('at-token');
   const bg = document.getElementById('bg-textarea');
-  if(bi) bi.value = atBaseId;
+  if(bi) bi.value = atBaseId || 'appNfS5sFG82vJQxw';
   if(tk) tk.value = atToken;
   if(bg) bg.value = userBg;
   renderHistory(historyCache);
@@ -720,10 +720,20 @@ Return this JSON:
 }`;
 
   try{
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,messages:[{role:'user',content:prompt}]})});
+    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:4000,messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
     let raw=data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
     raw=raw.replace(/```json|```/g,'').trim();
+    // Repair truncated JSON by closing open structures
+    try{ JSON.parse(raw); }catch(e){
+      // Try to close unclosed JSON
+      const opens = (raw.match(/\{/g)||[]).length - (raw.match(/\}/g)||[]).length;
+      const arrOpens = (raw.match(/\[/g)||[]).length - (raw.match(/\]/g)||[]).length;
+      for(let i=0;i<arrOpens;i++) raw+=']';
+      for(let i=0;i<opens;i++) raw+='}';
+      // Remove trailing comma before closing
+      raw = raw.replace(/,(\s*[\]\}])/g,'');
+    }
     const resumeData=JSON.parse(raw);
 
     statusEl.textContent='Building .docx file…';
@@ -898,7 +908,9 @@ function viewHistoryEntry(id){
 function saveAirtable(){
   atBaseId=document.getElementById('at-base-id').value.trim();
   atToken=document.getElementById('at-token').value.trim();
-  localStorage.setItem(AT_KEY,JSON.stringify({baseId:atBaseId,token:atToken}));
+  const atData=JSON.stringify({baseId:atBaseId,token:atToken});
+  localStorage.setItem(AT_KEY,atData);
+  try{sessionStorage.setItem(AT_KEY,atData);}catch(e){}
   showToast('Airtable credentials saved');
   if(atBaseId&&atToken) loadHistoryFromAirtable();
 }
