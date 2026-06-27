@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Job Application Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://unpkg.com/docx@7.8.2/build/index.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -758,8 +758,11 @@ Return this JSON:
 // DOCX BUILDER
 // ═══════════════════════════════════════
 async function buildDocx(data, entry, templateName, config){
-  const docxLib = window.docx;
-  if(!docxLib){ throw new Error('docx library not loaded — reload the page'); }
+  // Try multiple possible global names the library might use
+  const docxLib = window.docx || window.Document;
+  if(!docxLib || !docxLib.Packer){ 
+    throw new Error('Resume library still loading — wait 3 seconds and try again'); 
+  }
   const { Document, Paragraph, TextRun, AlignmentType, BorderStyle, Packer } = docxLib;
 
   const font   = config.font;
