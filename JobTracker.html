@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Job Application Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -755,123 +756,175 @@ Return this JSON:
 }
 
 // ═══════════════════════════════════════
-// DOCX BUILDER
+// DOCX BUILDER — pure JS, no external library
+// Builds a valid .docx (Office Open XML) from scratch
 // ═══════════════════════════════════════
 async function buildDocx(data, entry, templateName, config){
-  // Try multiple possible global names the library might use
-  const docxLib = window.docx || window.Document;
-  if(!docxLib || !docxLib.Packer){ 
-    throw new Error('Resume library still loading — wait 3 seconds and try again'); 
-  }
-  const { Document, Paragraph, TextRun, AlignmentType, BorderStyle, Packer } = docxLib;
-
-  const font   = config.font;
-  const sz     = config.size; // half-points
+  const font = config.font;
+  const sz   = config.size; // half-points e.g. 22 = 11pt
   const isModern = config.style === 'modern';
+  const headingColor = isModern ? '1a6ef5' : '1a1a18';
 
-  function hrLine(){
-    return new Paragraph({
-      border:{ bottom:{ color:'333333', space:1, style:BorderStyle.SINGLE, size:6 } },
-      spacing:{ after:80 }
-    });
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function para(runs, opts={}){
+    const jc   = opts.center ? '<w:jc w:val="center"/>' : '';
+    const spB  = opts.spBefore||0;
+    const spA  = opts.spAfter||120;
+    const ppr  = `<w:pPr>${jc}<w:spacing w:before="${spB}" w:after="${spA}"/>${opts.border?'<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="333333"/></w:pBdr>':''}</w:pPr>`;
+    return `<w:p>${ppr}${runs}</w:p>`;
   }
 
-  function sectionHeading(text){
-    return new Paragraph({
-      children:[new TextRun({ text:text.toUpperCase(), bold:true, font, size:sz+2, color:isModern?'1a6ef5':'1a1a18' })],
-      spacing:{ before:240, after:80 }
-    });
+  function run(text, opts={}){
+    const rpr = `<w:rPr>
+      <w:rFonts w:ascii="${font}" w:hAnsi="${font}"/>
+      <w:sz w:val="${opts.size||sz}"/><w:szCs w:val="${opts.size||sz}"/>
+      ${opts.bold?'<w:b/>':''}
+      ${opts.color?`<w:color w:val="${opts.color}"/>`:''}
+    </w:rPr>`;
+    return `<w:r>${rpr}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
+  }
+
+  function heading(text){
+    return para(run(text.toUpperCase(), {bold:true, size:sz+2, color:headingColor}), {spBefore:200, spAfter:60});
+  }
+
+  function hrPara(){
+    return para('', {border:true, spAfter:80});
   }
 
   function bullet(text){
-    return new Paragraph({
-      bullet:{ level:0 },
-      children:[new TextRun({ text, font, size:sz })],
-      spacing:{ after:40 }
-    });
+    return `<w:p>
+      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>
+      <w:spacing w:before="0" w:after="60"/>
+      <w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}"/><w:sz w:val="${sz}"/></w:rPr></w:pPr>
+      ${run(text)}</w:p>`;
   }
 
-  const children = [];
+  let body = '';
 
   // NAME
-  children.push(new Paragraph({
-    alignment: AlignmentType.CENTER,
-    children:[new TextRun({ text:data.name||'Your Name', bold:true, font, size:sz+12, color:'1a1a18' })],
-    spacing:{ after:60 }
-  }));
-
+  body += para(run(data.name||'Your Name', {bold:true, size:sz+14}), {center:true, spAfter:60});
   // CONTACT
-  children.push(new Paragraph({
-    alignment: AlignmentType.CENTER,
-    children:[new TextRun({ text:data.contact||'', font, size:sz-2, color:'5a5a58' })],
-    spacing:{ after:160 }
-  }));
+  body += para(run(data.contact||'', {size:sz-2, color:'5a5a58'}), {center:true, spAfter:180});
 
   // SUMMARY
-  children.push(sectionHeading('Professional Summary'));
-  children.push(hrLine());
-  children.push(new Paragraph({
-    children:[new TextRun({ text:data.summary||'', font, size:sz, italics:false })],
-    spacing:{ after:160 }
-  }));
+  body += heading('Professional Summary');
+  body += hrPara();
+  body += para(run(data.summary||''), {spAfter:180});
 
   // EXPERIENCE
-  children.push(sectionHeading('Experience'));
-  children.push(hrLine());
+  body += heading('Experience');
+  body += hrPara();
   (data.experience||[]).forEach(exp=>{
-    children.push(new Paragraph({
-      children:[
-        new TextRun({ text:exp.title||'', bold:true, font, size:sz }),
-        new TextRun({ text:'  ·  '+(exp.company||''), font, size:sz, color:'5a5a58' }),
-        new TextRun({ text:'          '+(exp.dates||''), font, size:sz, color:'8a8a88' })
-      ],
-      spacing:{ before:120, after:40 }
-    }));
-    (exp.bullets||[]).forEach(b=>children.push(bullet(b)));
-    children.push(new Paragraph({ spacing:{ after:80 } }));
+    body += para(
+      run((exp.title||''), {bold:true}) +
+      run('   ' + (exp.company||''), {color:'444444'}) +
+      run('     ' + (exp.dates||''), {color:'888888'}),
+      {spBefore:120, spAfter:60}
+    );
+    (exp.bullets||[]).forEach(b=>{ body += bullet(b); });
+    body += para('', {spAfter:80});
   });
 
   // EDUCATION
-  children.push(sectionHeading('Education'));
-  children.push(hrLine());
+  body += heading('Education');
+  body += hrPara();
   (data.education||[]).forEach(ed=>{
-    children.push(new Paragraph({
-      children:[
-        new TextRun({ text:(ed.degree||''), bold:true, font, size:sz }),
-        new TextRun({ text:'  ·  '+(ed.institution||''), font, size:sz, color:'5a5a58' }),
-        new TextRun({ text:'  '+(ed.year||''), font, size:sz, color:'8a8a88' })
-      ],
-      spacing:{ before:120, after:40 }
-    }));
-    if(ed.detail) children.push(new Paragraph({ children:[new TextRun({ text:ed.detail, font, size:sz-2, color:'5a5a58' })], spacing:{after:80} }));
+    body += para(
+      run((ed.degree||''), {bold:true}) +
+      run('   ' + (ed.institution||''), {color:'444444'}) +
+      run('   ' + (ed.year||''), {color:'888888'}),
+      {spBefore:120, spAfter:60}
+    );
+    if(ed.detail) body += para(run(ed.detail, {size:sz-2, color:'5a5a58'}), {spAfter:80});
   });
 
   // SKILLS
-  children.push(sectionHeading('Skills'));
-  children.push(hrLine());
-  (data.skills||[]).forEach(s=>children.push(new Paragraph({ children:[new TextRun({ text:'• '+s, font, size:sz })], spacing:{after:40} })));
+  body += heading('Skills');
+  body += hrPara();
+  (data.skills||[]).forEach(s=>{ body += para(run('• ' + s), {spAfter:40}); });
 
   // OTHER
   if((data.other||[]).length){
-    children.push(sectionHeading('Licenses & Credentials'));
-    children.push(hrLine());
-    (data.other||[]).forEach(o=>children.push(new Paragraph({ children:[new TextRun({ text:'• '+o, font, size:sz })], spacing:{after:40} })));
+    body += heading('Licenses & Credentials');
+    body += hrPara();
+    (data.other||[]).forEach(o=>{ body += para(run('• ' + o), {spAfter:40}); });
   }
 
-  const doc = new Document({
-    sections:[{
-      properties:{ page:{ margin:{ top:720, right:900, bottom:720, left:900 } } },
-      children
-    }]
-  });
+  // Build full docx XML
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<w:body>
+${body}
+<w:sectPr>
+  <w:pgMar w:top="720" w:right="900" w:bottom="720" w:left="900" w:header="708" w:footer="708" w:gutter="0"/>
+</w:sectPr>
+</w:body></w:document>`;
 
-  const blob = await Packer.toBlob(doc);
+  const numberingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="0">
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/><w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="•"/><w:lvlJc w:val="left"/>
+      <w:pPr><w:ind w:left="360" w:hanging="360"/></w:pPr>
+      <w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}"/><w:sz w:val="${sz}"/></w:rPr>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+</w:numbering>`;
+
+  const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+</Relationships>`;
+
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault><w:rPr>
+      <w:rFonts w:ascii="${font}" w:hAnsi="${font}"/>
+      <w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>
+    </w:rPr></w:rPrDefault>
+  </w:docDefaults>
+</w:styles>`;
+
+  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+</Types>`;
+
+  const rootRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+  // Use JSZip loaded inline to create the zip
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', contentTypesXml);
+  zip.file('_rels/.rels', rootRelsXml);
+  zip.file('word/document.xml', documentXml);
+  zip.file('word/styles.xml', stylesXml);
+  zip.file('word/numbering.xml', numberingXml);
+  zip.file('word/_rels/document.xml.rels', relsXml);
+
+  const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   const date = entry.date.replace(/,/g,'').replace(/ /g,'_');
   a.href     = url;
-  a.download = `Resume_${(entry.company||'Company').replace(/[^a-zA-Z0-9]/g,'_')}_${(entry.role||'Role').replace(/[^a-zA-Z0-9]/g,'_')}_${date}.docx`;
+  a.download = 'Resume_' + (entry.company||'Company').replace(/[^a-zA-Z0-9]/g,'_') + '_' + (entry.role||'Role').replace(/[^a-zA-Z0-9]/g,'_') + '_' + date + '.docx';
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
