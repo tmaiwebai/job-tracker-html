@@ -498,9 +498,8 @@ Return this exact JSON:
           'Gaps':(result.skill_gaps||[]).join(', ').substring(0,500),
           'ATS Keywords':(result.keywords||[]).join(', ').substring(0,500),
           'Resume Generated':'No',
-          'Feedback':'','Feedback Note':'',
-          'Raw Prompt':prompt.substring(0,5000),
-          'Raw Completion':JSON.stringify(result).substring(0,5000)
+          'Raw Prompt':prompt.substring(0,4000),
+          'Raw Completion':JSON.stringify(result).substring(0,4000)
         });
         entry.atId=atId; entry.id=atId;
       }catch(e){ console.warn('Airtable log failed',e.message); }
