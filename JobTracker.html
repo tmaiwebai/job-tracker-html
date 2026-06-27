@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Job Application Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js"></script>
+<script src="https://unpkg.com/docx@7.8.2/build/index.umd.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -748,7 +748,9 @@ Return this JSON:
 // DOCX BUILDER
 // ═══════════════════════════════════════
 async function buildDocx(data, entry, templateName, config){
-  const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, UnderlineType, Packer, TabStopPosition, TabStopType } = docx;
+  const docxLib = window.docx;
+  if(!docxLib){ throw new Error('docx library not loaded — reload the page'); }
+  const { Document, Paragraph, TextRun, AlignmentType, BorderStyle, Packer } = docxLib;
 
   const font   = config.font;
   const sz     = config.size; // half-points
