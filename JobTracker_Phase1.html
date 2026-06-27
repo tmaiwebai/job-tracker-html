@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Application Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--surface:#f8f8f7;--surface2:#f0f0ee;
+  --border:#e5e5e3;--border-strong:#d0d0ce;
+  --text:#1a1a18;--text2:#5a5a58;--text3:#8a8a88;
+  --accent:#1a6ef5;--accent-bg:#eef4ff;--accent-text:#1a5cd4;
+  --success-bg:#edf7f0;--success-text:#1a7a40;
+  --warn-bg:#fff8ec;--warn-text:#9a6200;
+  --danger-bg:#fef2f2;--danger-text:#c02020;
+  --radius:8px;--shadow:0 1px 3px rgba(0,0,0,0.08);
+}
+body{font-family:Georgia,serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.6}
+.app{display:flex;flex-direction:column;min-height:100vh;max-width:820px;margin:0 auto;padding:0 24px}
+.app-header{display:flex;align-items:center;justify-content:space-between;padding:18px 0 14px;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:32px;height:32px;border-radius:8px;background:var(--text);display:flex;align-items:center;justify-content:center}
+.logo-mark svg{width:16px;height:16px;fill:white}
+.logo-name{font-size:15px;font-weight:600;letter-spacing:-0.02em;color:var(--text)}
+.logo-sub{font-size:12px;color:var(--text3);margin-top:1px}
+.resume-status{display:flex;align-items:center;gap:8px}
+.resume-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;transition:all 0.15s;border:1px solid var(--border)}
+.resume-pill.loaded{background:var(--success-bg);color:var(--success-text);border-color:#b8e6c8}
+.resume-pill.empty{background:var(--surface);color:var(--text2);border-color:var(--border)}
+.resume-pill.empty:hover{border-color:var(--text3)}
+.resume-dot{width:6px;height:6px;border-radius:50%}
+.resume-pill.loaded .resume-dot{background:var(--success-text)}
+.resume-pill.empty .resume-dot{background:var(--text3)}
+#resume-file-input{display:none}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:0}
+.tab{padding:12px 20px;font-size:13px;font-family:Georgia,serif;color:var(--text2);cursor:pointer;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:var(--surface2);color:var(--text3);font-size:11px;padding:0 5px;margin-left:5px}
+.panel{display:none;padding:24px 0}
+.panel.active{display:block}
+.field-group{margin-bottom:16px}
+.field-label{font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
+textarea,input[type="text"],input[type="password"]{width:100%;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:14px;font-family:Georgia,serif;color:var(--text);background:var(--bg);transition:border-color 0.15s;line-height:1.6}
+textarea:focus,input[type="text"]:focus,input[type="password"]:focus{outline:none;border-color:var(--accent)}
+textarea{resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;border-radius:var(--radius);font-size:14px;font-family:Georgia,serif;cursor:pointer;transition:all 0.15s;border:1px solid transparent;font-weight:600}
+.btn-primary{background:var(--text);color:white;border-color:var(--text)}
+.btn-primary:hover{background:#333}
+.btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+.btn-ghost{background:var(--bg);color:var(--text2);border-color:var(--border)}
+.btn-ghost:hover{background:var(--surface);border-color:var(--border-strong)}
+.btn-sm{padding:7px 14px;font-size:12px}
+.score-card{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px;box-shadow:var(--shadow)}
+.score-top{display:flex;align-items:flex-start;justify-content:space-between;padding:20px 24px 16px;background:var(--surface)}
+.score-top-left h3{font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px}
+.score-top-left p{font-size:13px;color:var(--text2);line-height:1.5;max-width:480px}
+.score-circle{display:flex;flex-direction:column;align-items:center;min-width:70px}
+.score-num{font-size:36px;font-weight:700;line-height:1}
+.score-pct{font-size:12px;color:var(--text3);margin-top:2px}
+.score-bar-row{padding:0 24px 16px;background:var(--surface)}
+.score-bar-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.score-bar-fill{height:100%;border-radius:3px;transition:width 1s ease}
+.score-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)}
+.score-stat{padding:14px 20px;background:var(--bg);text-align:center}
+.score-stat-val{font-size:22px;font-weight:700;color:var(--text)}
+.score-stat-lbl{font-size:11px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:0.04em}
+.sec{border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:14px;background:var(--bg)}
+.sec-title{font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text3);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.sec-title span{font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:4px 11px;border-radius:20px;font-size:12px;font-weight:600}
+.chip-match{background:var(--success-bg);color:var(--success-text)}
+.chip-gap{background:var(--danger-bg);color:var(--danger-text)}
+.chip-neutral{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+.tweak{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+.tweak:last-child{border-bottom:none}
+.tweak-n{min-width:22px;height:22px;border-radius:50%;background:var(--accent-bg);color:var(--accent-text);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.tweak-text{font-size:13px;color:var(--text);line-height:1.55}
+.tp{display:flex;gap:10px;padding:6px 0}
+.tp-bullet{color:var(--accent);font-weight:700;font-size:16px;flex-shrink:0;margin-top:1px}
+.tp-text{font-size:13px;color:var(--text);line-height:1.55}
+.action-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;padding-top:20px;border-top:1px solid var(--border)}
+.log-badge{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);font-size:12px;font-weight:600}
+.log-ok{background:var(--success-bg);color:var(--success-text)}
+.log-err{background:var(--danger-bg);color:var(--danger-text)}
+.loading-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;padding:60px 0}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-step{font-size:13px;color:var(--text3);font-style:italic}
+.loading-bar{width:280px;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.loading-bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 1.5s ease}
+.hist-row{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:all 0.1s}
+.hist-row:hover{background:var(--surface);margin:0 -12px;padding:13px 12px;border-radius:var(--radius)}
+.hist-row:last-child{border-bottom:none}
+.hist-badge{min-width:48px;text-align:center;padding:4px 10px;border-radius:20px;font-size:13px;font-weight:700}
+.hist-info{flex:1}
+.hist-company{font-size:14px;font-weight:600;color:var(--text)}
+.hist-role{font-size:12px;color:var(--text2);margin-top:1px}
+.hist-meta{text-align:right}
+.hist-date{font-size:11px;color:var(--text3)}
+.hist-apply{font-size:11px;font-weight:600;margin-top:3px}
+.empty-state{text-align:center;padding:60px 0;color:var(--text3)}
+.empty-icon{font-size:40px;margin-bottom:12px;display:block}
+.empty-title{font-size:15px;color:var(--text2);margin-bottom:6px}
+.empty-body{font-size:13px}
+.settings-section{border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.settings-section h3{font-size:13px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text3);margin-bottom:16px}
+.input-row{display:flex;gap:8px;margin-top:8px}
+.input-row input{flex:1}
+.apply-yes{color:var(--success-text)}
+.apply-no{color:var(--danger-text)}
+.result-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px}
+.result-meta h3{font-size:16px;font-weight:700;color:var(--text)}
+.result-meta p{font-size:12px;color:var(--text3);margin-top:3px}
+.conn-status{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-top:8px}
+.conn-ok{background:var(--success-bg);color:var(--success-text)}
+.conn-err{background:var(--danger-bg);color:var(--danger-text)}
+.conn-idle{background:var(--surface2);color:var(--text3)}
+.toast{position:fixed;bottom:24px;right:24px;padding:10px 18px;background:var(--text);color:white;border-radius:var(--radius);font-size:13px;font-weight:600;opacity:0;transform:translateY(8px);transition:all 0.2s;z-index:1000;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 16 16"><path d="M8 1L2 4v4c0 3.5 2.5 6.3 6 7 3.5-.7 6-3.5 6-7V4L8 1z"/></svg>
+      </div>
+      <div>
+        <div class="logo-name">Job Application Tracker</div>
+        <div class="logo-sub">AI fit scoring · Airtable persistence</div>
+      </div>
+    </div>
+    <div class="resume-status">
+      <div class="resume-pill empty" id="resume-pill" onclick="document.getElementById('resume-file-input').click()">
+        <div class="resume-dot"></div>
+        <span id="resume-pill-text">Upload resume PDF</span>
+      </div>
+      <input type="file" id="resume-file-input" accept=".pdf" onchange="handleResumeUpload(event)">
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('analyze',this)">Analyze role</button>
+    <button class="tab" onclick="switchTab('history',this)">History <span class="tab-badge" id="hist-count">0</span></button>
+    <button class="tab" onclick="switchTab('settings',this)">Settings</button>
+  </div>
+
+  <!-- TAB: ANALYZE -->
+  <div id="tab-analyze" class="panel active">
+    <div id="input-view">
+      <div class="field-group">
+        <div class="field-label">Job description</div>
+        <textarea id="jd-input" rows="10" placeholder="Paste the full job description — title, responsibilities, requirements, company overview…"></textarea>
+      </div>
+      <div class="row2">
+        <div class="field-group">
+          <div class="field-label">Company</div>
+          <input type="text" id="company-input" placeholder="e.g. Alpaca VC">
+        </div>
+        <div class="field-group">
+          <div class="field-label">Role title</div>
+          <input type="text" id="role-input" placeholder="e.g. Principal, Investments">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="runAnalysis()">Score this role →</button>
+      <div id="no-resume-warn" style="display:none;margin-top:12px;padding:10px 14px;background:var(--warn-bg);border-radius:var(--radius);font-size:13px;color:var(--warn-text)">
+        ⚠ No resume uploaded. Upload a PDF for a more accurate score — using saved background instead.
+      </div>
+    </div>
+    <div id="loading-view" style="display:none">
+      <div class="loading-wrap">
+        <div class="spinner"></div>
+        <div class="loading-bar"><div class="loading-bar-fill" id="loading-bar-fill" style="width:10%"></div></div>
+        <div class="loading-step" id="loading-step">Reading job description…</div>
+      </div>
+    </div>
+    <div id="results-view" style="display:none"></div>
+  </div>
+
+  <!-- TAB: HISTORY -->
+  <div id="tab-history" class="panel">
+    <div id="history-loading" style="display:none;padding:30px 0;text-align:center">
+      <div class="spinner" style="margin:0 auto 10px"></div>
+      <div style="font-size:13px;color:var(--text3)">Loading from Airtable…</div>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <!-- TAB: SETTINGS -->
+  <div id="tab-settings" class="panel">
+
+    <div class="settings-section">
+      <h3>Airtable connection</h3>
+      <div class="field-group">
+        <div class="field-label">Base ID</div>
+        <input type="text" id="at-base-id" placeholder="appXXXXXXXXXXXXXX">
+      </div>
+      <div class="field-group">
+        <div class="field-label">API Token</div>
+        <input type="password" id="at-token" placeholder="patXXXXXXXXXXXXXX.XXXX">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="saveAirtable()">Save</button>
+        <button class="btn btn-ghost btn-sm" onclick="testAirtable()">Test connection</button>
+        <span id="at-status" class="conn-status conn-idle" style="display:none"></span>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Your background</h3>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Used when no resume PDF is uploaded.</p>
+      <textarea id="bg-textarea" rows="7" placeholder="Paste your resume summary here. Used when no PDF is uploaded.&#10;&#10;Example: 14 years IBM, M.S. Computer Science Tulane, Texas RE Broker, YouTube creator across 5 channels, Python/Flask, VC deal flow, AngelHack 2016 winner…"></textarea>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+        <button class="btn btn-ghost btn-sm" onclick="saveBg()">Save background</button>
+        <span id="bg-saved" style="display:none;font-size:12px;color:var(--success-text);font-weight:600">✓ Saved</span>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Data</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">Clear local cache</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">History lives in Airtable. This clears local temp data only.</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="clearCache()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG — pre-filled
+// ═══════════════════════════════════════════
+const DEFAULT_BASE_ID = '';
+const DEFAULT_TOKEN   = '';
+const TABLE_NAME      = 'Applications';
+
+const BG_KEY    = 'jat_bg_v2';
+const AT_KEY    = 'jat_at_v2';
+const CACHE_KEY = 'jat_cache_v2';
+
+let resumeText   = '';
+let resumeLoaded = false;
+let userBg       = '';
+let atBaseId     = '';
+let atToken      = '';
+let historyCache = [];
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+function init(){
+  userBg = localStorage.getItem(BG_KEY) || '';
+  try{ historyCache = JSON.parse(localStorage.getItem(CACHE_KEY)||'[]'); }catch(e){ historyCache=[]; }
+
+  // Load saved AT creds or use defaults
+  let saved = {};
+  try{ saved = JSON.parse(localStorage.getItem(AT_KEY)||'{}'); }catch(e){}
+  atBaseId = saved.baseId || DEFAULT_BASE_ID;
+  atToken  = saved.token  || DEFAULT_TOKEN;
+
+  const bi = document.getElementById('at-base-id');
+  const tk = document.getElementById('at-token');
+  const bg = document.getElementById('bg-textarea');
+  if(bi) bi.value = atBaseId;
+  if(tk) tk.value = atToken;
+  if(bg) bg.value = userBg;
+
+  renderHistory(historyCache);
+  if(atBaseId && atToken) loadHistoryFromAirtable();
+}
+
+// ═══════════════════════════════════════════
+// AIRTABLE API
+// ═══════════════════════════════════════════
+function atUrl(extra){
+  return `https://api.airtable.com/v0/${atBaseId}/${encodeURIComponent(TABLE_NAME)}${extra||''}`;
+}
+function atHeaders(){
+  return { 'Authorization': 'Bearer ' + atToken, 'Content-Type': 'application/json' };
+}
+
+async function atCreate(fields){
+  const res  = await fetch(atUrl(), {
+    method:  'POST',
+    headers: atHeaders(),
+    body:    JSON.stringify({ records: [{ fields }] })
+  });
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.error?.message || 'Airtable write failed');
+  return data.records[0].id;
+}
+
+async function atUpdate(recordId, fields){
+  const res = await fetch(atUrl('/' + recordId), {
+    method:  'PATCH',
+    headers: atHeaders(),
+    body:    JSON.stringify({ fields })
+  });
+  if(!res.ok){
+    const d = await res.json();
+    throw new Error(d.error?.message || 'Airtable update failed');
+  }
+}
+
+async function atFetchAll(){
+  let records = [];
+  let offset  = null;
+  do {
+    const url = atUrl('?sort[0][field]=Date&sort[0][direction]=desc' + (offset ? '&offset='+offset : ''));
+    const res  = await fetch(url, { headers: atHeaders() });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error?.message || 'Airtable read failed');
+    records = records.concat(data.records||[]);
+    offset  = data.offset || null;
+  } while(offset);
+  return records;
+}
+
+async function testAirtable(){
+  const el = document.getElementById('at-status');
+  el.style.display = 'inline-flex';
+  el.className = 'conn-status conn-idle';
+  el.textContent = 'Testing…';
+  try{
+    const records = await atFetchAll();
+    el.className = 'conn-status conn-ok';
+    el.textContent = '✓ Connected — ' + records.length + ' records';
+  }catch(err){
+    el.className = 'conn-status conn-err';
+    el.textContent = '✕ ' + err.message;
+  }
+}
+
+async function loadHistoryFromAirtable(){
+  document.getElementById('history-loading').style.display = 'block';
+  try{
+    const records = await atFetchAll();
+    const entries = records.map(r => atRecordToEntry(r));
+    historyCache  = entries;
+    localStorage.setItem(CACHE_KEY, JSON.stringify(entries.slice(0,200)));
+    renderHistory(entries);
+  }catch(e){
+    console.warn('Airtable load failed', e);
+  }finally{
+    document.getElementById('history-loading').style.display = 'none';
+  }
+}
+
+function atRecordToEntry(r){
+  const f = r.fields;
+  return {
+    id:       r.id,
+    atId:     r.id,
+    company:  f['Company']  || '',
+    role:     f['Role']     || '',
+    date:     f['Date']     || '',
+    score:    parseInt(f['Score']) || 0,
+    result:{
+      fit_score:      parseInt(f['Score']) || 0,
+      verdict:        f['Verdict'] || '',
+      apply:          f['Apply'] === 'Yes',
+      matched_skills: (f['Matched Skills']||'').split(',').filter(Boolean).map(s=>s.trim()),
+      skill_gaps:     (f['Gaps']||'').split(',').filter(Boolean).map(s=>s.trim()),
+      keywords:       (f['ATS Keywords']||'').split(',').filter(Boolean).map(s=>s.trim()),
+      resume_tweaks:  [],
+      talking_points: [],
+      transferable:   []
+    }
+  };
+}
+
+// ═══════════════════════════════════════════
+// PDF UPLOAD
+// ═══════════════════════════════════════════
+async function handleResumeUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const pill     = document.getElementById('resume-pill');
+  const pillText = document.getElementById('resume-pill-text');
+  pill.classList.remove('loaded','empty');
+  pillText.textContent = 'Reading…';
+  try{
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf         = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+    let text = '';
+    for(let i = 1; i <= pdf.numPages; i++){
+      const page    = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(s => s.str).join(' ') + '\n';
+    }
+    resumeText   = text.trim();
+    resumeLoaded = true;
+    pill.classList.add('loaded');
+    const name = file.name.length > 28 ? file.name.substring(0,25)+'…' : file.name;
+    pillText.textContent = name;
+    showToast('Resume loaded — ' + pdf.numPages + ' pages');
+    document.getElementById('no-resume-warn').style.display = 'none';
+  }catch(err){
+    pill.classList.add('empty');
+    pillText.textContent = 'Upload resume PDF';
+    showToast('PDF read failed');
+  }
+  e.target.value = '';
+}
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+function switchTab(name, el){
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  if(el) el.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ═══════════════════════════════════════════
+// ANALYSIS
+// ═══════════════════════════════════════════
+const LOADING_STEPS = [
+  ['Reading job description…', 15],
+  ['Parsing your resume…', 30],
+  ['Identifying skill matches…', 50],
+  ['Computing fit score…', 65],
+  ['Drafting resume tweaks…', 80],
+  ['Generating talking points…', 92],
+  ['Finalizing report…', 98],
+];
+
+async function runAnalysis(){
+  const jd      = document.getElementById('jd-input').value.trim();
+  const company = document.getElementById('company-input').value.trim();
+  const role    = document.getElementById('role-input').value.trim();
+  if(!jd){ showToast('Paste a job description first'); return; }
+  if(!resumeLoaded) document.getElementById('no-resume-warn').style.display = 'block';
+
+  document.getElementById('input-view').style.display   = 'none';
+  document.getElementById('loading-view').style.display = 'block';
+  document.getElementById('results-view').style.display = 'none';
+
+  let stepIdx = 0;
+  const stepEl = document.getElementById('loading-step');
+  const barEl  = document.getElementById('loading-bar-fill');
+  function advanceStep(){
+    if(stepIdx < LOADING_STEPS.length){
+      stepEl.textContent = LOADING_STEPS[stepIdx][0];
+      barEl.style.width  = LOADING_STEPS[stepIdx][1] + '%';
+      stepIdx++;
+    }
+  }
+  advanceStep();
+  const stepTimer = setInterval(advanceStep, 1600);
+
+  const bgContext = resumeLoaded
+    ? resumeText.substring(0, 6000)
+    : (userBg || 'Tony Mai (Hank): 14 years IBM, M.S. Computer Science Tulane University, Licensed Texas Real Estate Broker, YouTube creator across 5 channels (Old Man\'s Ride, Traveling & Eating, Angel Marketing, The Aesthetic Insight, CarMotorcycleGarage), Python/Flask, VC deal flow pipeline, AngelHack 2016 winner, SaaS acquisition and exit (ChimpRewriter.com), Texas real estate investing.');
+
+  const prompt = `You are a senior career coach and hiring expert with deep knowledge of venture capital, fintech, real estate, and technology roles.
+
+Analyze the fit between the candidate and this job. Return ONLY valid JSON. No markdown. No backticks. No preamble.
+
+CANDIDATE BACKGROUND:
+${bgContext}
+
+JOB: ${role||'(not specified)'} at ${company||'(not specified)'}
+
+JOB DESCRIPTION:
+${jd}
+
+Return this exact JSON:
+{
+  "fit_score": <integer 0-100>,
+  "verdict": "<2-sentence honest overall assessment>",
+  "matched_skills": ["<specific skill from JD that candidate has>"],
+  "skill_gaps": ["<specific requirement candidate lacks>"],
+  "transferable": ["<strength that transfers even if not exact match>"],
+  "resume_tweaks": [
+    {"tweak": "<specific actionable resume change>"},
+    {"tweak": "<specific actionable resume change>"},
+    {"tweak": "<specific actionable resume change>"},
+    {"tweak": "<specific actionable resume change>"},
+    {"tweak": "<specific actionable resume change>"}
+  ],
+  "talking_points": [
+    "<compelling interview talking point>",
+    "<compelling interview talking point>",
+    "<compelling interview talking point>",
+    "<compelling interview talking point>"
+  ],
+  "keywords": ["<ATS keyword from JD>"],
+  "apply": <true if score >= 55, false otherwise>
+}`;
+
+  try{
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1200,
+        messages: [{role:'user', content:prompt}]
+      })
+    });
+    const data = await res.json();
+    clearInterval(stepTimer);
+    barEl.style.width = '100%';
+
+    let raw = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    raw = raw.replace(/```json|```/g,'').trim();
+    const result = JSON.parse(raw);
+
+    const entry = {
+      id:      Date.now(),
+      atId:    null,
+      company: company || '(company)',
+      role:    role    || '(role)',
+      date:    new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+      score:   result.fit_score,
+      result
+    };
+
+    // Log to Airtable
+    if(atBaseId && atToken){
+      try{
+        const atId = await atCreate({
+          'Date':           entry.date,
+          'Company':        entry.company,
+          'Role':           entry.role,
+          'Score':          result.fit_score,
+          'Apply':          result.apply ? 'Yes' : 'No',
+          'Verdict':        (result.verdict||'').substring(0,500),
+          'Matched Skills': (result.matched_skills||[]).join(', ').substring(0,500),
+          'Gaps':           (result.skill_gaps||[]).join(', ').substring(0,500),
+          'ATS Keywords':   (result.keywords||[]).join(', ').substring(0,500),
+          'Resume Generated': 'No'
+        });
+        entry.atId = atId;
+        entry.id   = atId;
+      }catch(e){ console.warn('Airtable log failed', e.message); }
+    }
+
+    historyCache.unshift(entry);
+    localStorage.setItem(CACHE_KEY, JSON.stringify(historyCache.slice(0,200)));
+    renderHistory(historyCache);
+    setTimeout(()=> renderResults(entry), 400);
+
+  }catch(err){
+    clearInterval(stepTimer);
+    document.getElementById('loading-view').style.display = 'none';
+    document.getElementById('input-view').style.display   = 'block';
+    showToast('Analysis failed — ' + err.message);
+    console.error(err);
+  }
+}
+
+// ═══════════════════════════════════════════
+// RENDER RESULTS
+// ═══════════════════════════════════════════
+function getScoreStyle(n){
+  if(n >= 75) return {color:'var(--success-text)', bar:'#4caf7d', bg:'var(--success-bg)'};
+  if(n >= 55) return {color:'var(--warn-text)',    bar:'#f0a500', bg:'var(--warn-bg)'};
+  return             {color:'var(--danger-text)',  bar:'#e05454', bg:'var(--danger-bg)'};
+}
+
+function renderResults(entry){
+  document.getElementById('loading-view').style.display = 'none';
+  document.getElementById('results-view').style.display = 'block';
+
+  const r  = entry.result;
+  const sc = getScoreStyle(r.fit_score);
+  const chipsHtml = (arr, cls) => (arr||[]).map(s=>`<span class="chip ${cls}">${s}</span>`).join('');
+  const tweaksHtml = (r.resume_tweaks||[]).map((t,i)=>`
+    <div class="tweak"><div class="tweak-n">${i+1}</div><div class="tweak-text">${t.tweak||t}</div></div>`).join('');
+  const tpHtml = (r.talking_points||[]).map(t=>`
+    <div class="tp"><div class="tp-bullet">›</div><div class="tp-text">${t}</div></div>`).join('');
+  const applyHtml = r.apply
+    ? `<span class="apply-yes">✓ Apply</span>`
+    : `<span class="apply-no">✕ Skip</span>`;
+  const atBadge = entry.atId
+    ? `<span class="log-badge log-ok">✓ Saved to Airtable</span>`
+    : `<span class="log-badge log-err">✕ Airtable not connected</span>`;
+
+  document.getElementById('results-view').innerHTML = `
+    <div class="result-header">
+      <div class="result-meta">
+        <h3>${entry.role} · ${entry.company}</h3>
+        <p>${entry.date} &nbsp;·&nbsp; ${applyHtml}</p>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="resetToInput()">+ New</button>
+    </div>
+    <div class="score-card">
+      <div class="score-top">
+        <div class="score-top-left">
+          <h3>Fit score</h3>
+          <p>${r.verdict||''}</p>
+        </div>
+        <div class="score-circle">
+          <div class="score-num" style="color:${sc.color}">${r.fit_score}</div>
+          <div class="score-pct">out of 100</div>
+        </div>
+      </div>
+      <div class="score-bar-row">
+        <div class="score-bar-track">
+          <div class="score-bar-fill" id="score-bar" style="width:0%;background:${sc.bar}"></div>
+        </div>
+      </div>
+      <div class="score-stats">
+        <div class="score-stat">
+          <div class="score-stat-val" style="color:var(--success-text)">${(r.matched_skills||[]).length}</div>
+          <div class="score-stat-lbl">Skills matched</div>
+        </div>
+        <div class="score-stat">
+          <div class="score-stat-val" style="color:var(--danger-text)">${(r.skill_gaps||[]).length}</div>
+          <div class="score-stat-lbl">Skill gaps</div>
+        </div>
+        <div class="score-stat">
+          <div class="score-stat-val" style="color:var(--accent-text)">${(r.keywords||[]).length}</div>
+          <div class="score-stat-lbl">ATS keywords</div>
+        </div>
+      </div>
+    </div>
+    ${(r.matched_skills||[]).length?`<div class="sec"><div class="sec-title"><span>✓</span> Skills you match</div><div class="chips">${chipsHtml(r.matched_skills,'chip-match')}</div></div>`:''}
+    ${(r.skill_gaps||[]).length?`<div class="sec"><div class="sec-title"><span>△</span> Gaps to address</div><div class="chips">${chipsHtml(r.skill_gaps,'chip-gap')}</div></div>`:''}
+    ${(r.transferable||[]).length?`<div class="sec"><div class="sec-title"><span>⇄</span> Transferable strengths</div><div class="chips">${chipsHtml(r.transferable,'chip-neutral')}</div></div>`:''}
+    <div class="sec"><div class="sec-title"><span>✎</span> Resume tweaks</div>${tweaksHtml}</div>
+    <div class="sec"><div class="sec-title"><span>💬</span> Talking points</div>${tpHtml}</div>
+    ${(r.keywords||[]).length?`<div class="sec"><div class="sec-title"><span>#</span> ATS keywords to include</div><div class="chips">${chipsHtml(r.keywords,'chip-neutral')}</div></div>`:''}
+    <div class="action-row">
+      ${atBadge}
+      <button class="btn btn-ghost btn-sm" onclick="sendToChat('cover_letter','${escStr(entry.role)}','${escStr(entry.company)}')">Draft cover letter →</button>
+      <button class="btn btn-ghost btn-sm" onclick="sendToChat('interview','${escStr(entry.role)}','${escStr(entry.company)}')">Interview prep →</button>
+    </div>`;
+
+  setTimeout(()=>{
+    const bar = document.getElementById('score-bar');
+    if(bar) bar.style.width = r.fit_score + '%';
+  }, 100);
+}
+
+function escStr(s){ return (s||'').replace(/'/g,"\\'"); }
+
+function sendToChat(type, role, company){
+  const msgs = {
+    cover_letter: `Write a tailored cover letter for the ${role} role at ${company} using my resume background and the fit analysis we just ran. Keep it to 3 paragraphs, formal but direct.`,
+    interview:    `Help me prepare for interviews for the ${role} role at ${company}. Based on my background and the fit analysis, give me the 8 most likely interview questions and strong answers for each.`
+  };
+  if(window.parent && window.parent.postMessage){
+    window.parent.postMessage({type:'sendMessage', text: msgs[type]}, '*');
+  }
+}
+
+function resetToInput(){
+  document.getElementById('results-view').style.display = 'none';
+  document.getElementById('input-view').style.display   = 'block';
+  document.getElementById('jd-input').value = '';
+  document.getElementById('company-input').value = '';
+  document.getElementById('role-input').value = '';
+}
+
+// ═══════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════
+function renderHistory(entries){
+  const list  = document.getElementById('history-list');
+  const count = document.getElementById('hist-count');
+  count.textContent = entries.length;
+  if(!entries.length){
+    list.innerHTML = `<div class="empty-state"><span class="empty-icon">📋</span><div class="empty-title">No applications tracked yet</div><div class="empty-body">Score a role in the Analyze tab to add your first entry.</div></div>`;
+    return;
+  }
+  list.innerHTML = entries.map(e=>{
+    const sc = getScoreStyle(e.score);
+    return `<div class="hist-row" onclick="viewHistoryEntry('${e.id}')">
+      <div class="hist-badge" style="background:${sc.bg};color:${sc.color}">${e.score}%</div>
+      <div class="hist-info">
+        <div class="hist-company">${e.company}</div>
+        <div class="hist-role">${e.role}</div>
+      </div>
+      <div class="hist-meta">
+        <div class="hist-date">${e.date}</div>
+        <div class="hist-apply ${e.result.apply?'apply-yes':'apply-no'}">${e.result.apply?'✓ Apply':'✕ Skip'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function viewHistoryEntry(id){
+  const entry = historyCache.find(e=>String(e.id)===String(id));
+  if(!entry) return;
+  switchTab('analyze', document.querySelectorAll('.tab')[0]);
+  document.getElementById('input-view').style.display   = 'none';
+  document.getElementById('loading-view').style.display = 'none';
+  renderResults(entry);
+}
+
+// ═══════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════
+function saveAirtable(){
+  atBaseId = document.getElementById('at-base-id').value.trim();
+  atToken  = document.getElementById('at-token').value.trim();
+  localStorage.setItem(AT_KEY, JSON.stringify({baseId:atBaseId, token:atToken}));
+  showToast('Airtable credentials saved');
+  if(atBaseId && atToken) loadHistoryFromAirtable();
+}
+
+function saveBg(){
+  userBg = document.getElementById('bg-textarea').value.trim();
+  localStorage.setItem(BG_KEY, userBg);
+  const badge = document.getElementById('bg-saved');
+  badge.style.display = 'inline';
+  setTimeout(()=>{ badge.style.display='none'; }, 2000);
+}
+
+function clearCache(){
+  localStorage.removeItem(CACHE_KEY);
+  historyCache = [];
+  renderHistory([]);
+  showToast('Local cache cleared');
+}
+
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2800);
+}
+
+init();
+</script>
+</body>
+</html>
